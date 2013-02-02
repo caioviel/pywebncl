@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from PySide import QtGui, QtCore
+from PySide import QtGui, QtCore, QtWebKit
 from ui.ui_ChooseDocumentWidget import Ui_ChooseDocumentWidget
 from ui.ui_PlaybackWidget import Ui_PlaybackWidget
 import os
@@ -11,8 +11,10 @@ class PlaybackWidget(QtGui.QWidget):
     def __init__(self, width, height, directory, filename, parent=None):
         super(PlaybackWidget, self).__init__(parent) 
         self.__width, self.__height = width, height
+        self.real_path, _ = os.path.split(os.path.realpath(__file__))
         self.directory = directory
         self.filename = filename
+        self.__is_paused = False
         
         self.ui = Ui_PlaybackWidget()
         self.ui.setupUi(self)
@@ -31,7 +33,7 @@ class PlaybackWidget(QtGui.QWidget):
     
     def generate_temp_files(self):
         shutil.rmtree(self.directory + '/.webncl', True)
-        shutil.copytree('webncl', self.directory + '/.webncl')
+        shutil.copytree(self.real_path + '/webncl', self.directory + '/.webncl')
         self.generate_html_file(self.directory + '/.webncl/index.html')
         
         
@@ -59,8 +61,6 @@ class PlaybackWidget(QtGui.QWidget):
         html_file = open(filename, 'w+')
         html_file.write(content)
         html_file.close()
-
-        
     
     def start_presentation(self):
         webView = self.ui.webView
@@ -69,9 +69,27 @@ class PlaybackWidget(QtGui.QWidget):
         settings.setAttribute(settings.LocalContentCanAccessFileUrls, True)
         #webView.loadFinished.connect(self.page_loaded)
         webView.setUrl(self.directory + '/.webncl/index.html')
-    
-    #def close(self):
-    #    
+        self.frame = self.ui.webView.page().mainFrame()
+        
+    def closeEvent(self, event):
+       shutil.rmtree(self.directory + '/.webncl', True)
+       event.accept()
+       
+    @QtCore.Slot(str)
+    def key_event(self, button_str):
+        #print button_str
+        if button_str == 'PLAY':
+            if self.__is_paused:
+                self.frame.evaluateJavaScript('myPlayer.resume();')
+            else:
+                self.frame.evaluateJavaScript('myPlayer.start();')
+        elif button_str == 'STOP':
+            self.frame.evaluateJavaScript('myPlayer.stop();')
+        elif button_str == 'PAUSE':
+            self.__is_paused = True
+            self.frame.evaluateJavaScript('myPlayer.pause();')
+        else:
+            self.frame.evaluateJavaScript('myPlayer.keyPress("%s");' %  button_str)
         
 
 class ChooseDocumentWidget(QtGui.QWidget):
@@ -125,17 +143,62 @@ class ChooseDocumentWidget(QtGui.QWidget):
         #self.playback.activateWindow()
         
         if use_control:
-            pass
+            self.remote_control = RemoteControlWidget()
+            self.remote_control.button_pressed.connect(self.playback.key_event)
             #create and initialize control
             
         self.setVisible(False)
+        
+        
+class RemoteControlWidget(QtCore.QObject):    
+    
+    button_pressed = QtCore.Signal(str)
+    
+    def __init__(self):
+        QtCore.QObject.__init__(self)
+        self.real_path, _ = os.path.split(os.path.realpath(__file__))
+        
+        self.remote_control = QtWebKit.QWebView()
+        remote_control = self.remote_control
+        remote_control.resize(134, 558)
+        remote_control.setMaximumSize(remote_control.size())
+        remote_control.setWindowFlags(QtCore.Qt.Tool)
+        remote_control.setWindowTitle(" ")
 
-def test():
+        self.frame = remote_control.page().mainFrame()
+        frame = self.frame
+        frame.setScrollBarPolicy(QtCore.Qt.Horizontal, QtCore.Qt.ScrollBarAlwaysOff)
+        frame.setScrollBarPolicy(QtCore.Qt.Vertical, QtCore.Qt.ScrollBarAlwaysOff)
+    
+        settings = remote_control.settings()
+        settings.setAttribute(settings.LocalContentCanAccessRemoteUrls, True)
+        settings.setAttribute(settings.LocalContentCanAccessFileUrls, True)
+
+        remote_control.setUrl(self.real_path + '/control/control.html')
+        frame.addToJavaScriptWindowObject('python_interface', self)
+        
+        remote_control.show()
+        
+        
+    @QtCore.Slot(str)
+    def key_event(self, button_str):
+        self.button_pressed.emit(button_str)
+        
+        
+
+def main():
     import sys
     app = QtGui.QApplication(sys.argv)
     widget = ChooseDocumentWidget()
     sys.exit(app.exec_())
+    
+def test():
+    import sys
+    app = QtGui.QApplication(sys.argv)
+    widget = RemoteControlWidget()
+    sys.exit(app.exec_())
  
     
 if __name__ == "__main__":
-    test()
+    main()
+    #test()
