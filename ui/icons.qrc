@@ -1,0 +1,8 @@
+<RCC>
+  <qresource prefix="i">
+    <file>button_blue_pause.png</file>
+    <file>button_blue_play.png</file>
+    <file>button_blue_stop.png</file>
+    <file>folder_open.png</file>
+  </qresource>
+</RCC>
