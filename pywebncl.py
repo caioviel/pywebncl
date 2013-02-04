@@ -1,11 +1,15 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from PySide import QtGui, QtCore, QtWebKit
+from PyQt4 import QtGui, QtCore, QtWebKit
 from ui.ui_ChooseDocumentWidget import Ui_ChooseDocumentWidget
 from ui.ui_PlaybackWidget import Ui_PlaybackWidget
 import os
 import shutil
+
+QtCore.Signal = QtCore.pyqtSignal
+QtCore.QString = str
+QtCore.Slot = QtCore.pyqtSlot
 
 class PlaybackWidget(QtGui.QWidget):
     def __init__(self, width, height, directory, filename, parent=None):
@@ -67,9 +71,14 @@ class PlaybackWidget(QtGui.QWidget):
         settings = webView.settings()
         settings.setAttribute(settings.LocalContentCanAccessRemoteUrls, True)
         settings.setAttribute(settings.LocalContentCanAccessFileUrls, True)
-        #webView.loadFinished.connect(self.page_loaded)
-        webView.setUrl(self.directory + '/.webncl/index.html')
+        webView.loadFinished.connect(self.page_loaded)
+        webView.setUrl(QtCore.QUrl(self.directory + '/.webncl/index.html'))
         self.frame = self.ui.webView.page().mainFrame()
+        
+    def page_loaded(self):
+        document = self.frame.documentElement()
+        element = document.findFirst("#ncl1_video1")
+        print element
         
     def closeEvent(self, event):
        shutil.rmtree(self.directory + '/.webncl', True)
@@ -108,16 +117,17 @@ class ChooseDocumentWidget(QtGui.QWidget):
     
     @QtCore.Slot()
     def choose_document(self):
-        filepath, _ = QtGui.QFileDialog.getOpenFileName(self, 
+        filepath = QtGui.QFileDialog.getOpenFileName(self, 
                                                     u'Selecione o Documento NCL',
                                                     self.home_directory,
                                                     'Documento NCL (*.ncl)')
+        print filepath
         
         if not filepath:
             self.ui.btn_start.setEnabled(False)
             self.ui.txt_document_name.setText('')
         else:
-            self.directory, self.filename = os.path.split(filepath)
+            self.directory, self.filename = os.path.split(str(filepath))
             self.ui.txt_document_name.setText(filepath)
             self.ui.btn_start.setEnabled(True)
         
@@ -174,7 +184,7 @@ class RemoteControlWidget(QtCore.QObject):
         settings.setAttribute(settings.LocalContentCanAccessRemoteUrls, True)
         settings.setAttribute(settings.LocalContentCanAccessFileUrls, True)
 
-        remote_control.setUrl(self.real_path + '/control/control.html')
+        remote_control.setUrl(QtCore.QUrl(self.real_path + '/control/control.html'))
         frame.addToJavaScriptWindowObject('python_interface', self)
         
         remote_control.show()
